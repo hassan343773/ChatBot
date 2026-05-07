@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Classifier</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav><h1>🤖 AI Project</h1></nav>
+    <div class="container">
+        <a href="/" class="back">← Back to Home</a>
+        <h2>🌸 Flower Image Classifier</h2>
+        <input type="file" id="imageInput" accept="image/*"
+               style="color:white; margin-bottom:10px;">
+        <br>
+        <button onclick="classifyImage()">Classify Image</button>
+        <div class="result" id="result">Upload a flower image to classify...</div>
+    </div>
+    <script>
+        async function classifyImage() {
+            const file = document.getElementById('imageInput').files[0];
+            if (!file) { alert('Please select an image!'); return; }
+            document.getElementById('result').innerText = 'Classifying...';
+            const formData = new FormData();
+            formData.append('image', file);
+            const res  = await fetch('/api/classify', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.error) {
+                document.getElementById('result').innerText = '❌ ' + data.error;
+            } else {
+                document.getElementById('result').innerText =
+                    `Flower: ${data.class}\nConfidence: ${data.confidence}%`;
+            }
+        }
+    </script>
+</body>
+</html>
