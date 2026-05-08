@@ -2,30 +2,256 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sentiment Analysis</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .container { max-width: 800px; margin: 30px auto; padding: 20px; }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header-section h2 { font-size: 2rem; color: #a78bfa; margin-bottom: 8px; }
+        .header-section p  { color: #64748b; font-size: 1rem; }
+
+        .input-card {
+            background: #1a1a2e;
+            border: 1px solid #7c3aed;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 6px;
+        }
+
+        .analyze-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 1.1rem;
+            border-radius: 12px;
+            margin-top: 12px;
+            background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+            border: none;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: opacity 0.3s;
+        }
+        .analyze-btn:hover { opacity: 0.9; }
+        .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Result Card */
+        .result-card {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.5s ease;
+            border: 2px solid #7c3aed;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .sentiment-emoji { font-size: 4rem; margin-bottom: 10px; }
+        .sentiment-label {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .sentiment-label.POSITIVE { color: #22c55e; }
+        .sentiment-label.NEGATIVE { color: #ef4444; }
+        .sentiment-label.NEUTRAL  { color: #f59e0b; }
+
+        .confidence-bar-wrap {
+            background: #2d2d4e;
+            border-radius: 999px;
+            height: 12px;
+            margin: 16px auto;
+            max-width: 400px;
+            overflow: hidden;
+        }
+        .confidence-bar {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 1s ease;
+            width: 0%;
+        }
+        .confidence-bar.POSITIVE { background: linear-gradient(90deg, #16a34a, #22c55e); }
+        .confidence-bar.NEGATIVE { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+        .confidence-bar.NEUTRAL  { background: linear-gradient(90deg, #b45309, #f59e0b); }
+
+        .confidence-text { color: #94a3b8; font-size: 1rem; margin-top: 8px; }
+
+        /* History */
+        .history-section { margin-top: 30px; }
+        .history-section h3 { color: #a78bfa; margin-bottom: 14px; }
+        .history-item {
+            background: #1a1a2e;
+            border: 1px solid #2d2d4e;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .history-text  { color: #cbd5e1; font-size: 0.9rem; flex: 1; margin-right: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-badge {
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .badge-POSITIVE { background: #166534; color: #86efac; }
+        .badge-NEGATIVE { background: #7f1d1d; color: #fca5a5; }
+        .badge-NEUTRAL  { background: #78350f; color: #fcd34d; }
+
+        /* Quick tests */
+        .quick-tests { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .quick-btn {
+            padding: 6px 14px;
+            border: 1px solid #7c3aed;
+            border-radius: 999px;
+            background: transparent;
+            color: #a78bfa;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .quick-btn:hover { background: #7c3aed; color: white; }
+
+        .spinner {
+            display: none;
+            width: 30px; height: 30px;
+            border: 3px solid #2d2d4e;
+            border-top: 3px solid #7c3aed;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 10px auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
     <nav><h1>🤖 AI Project</h1></nav>
     <div class="container">
         <a href="/" class="back">← Back to Home</a>
-        <h2>💬 Sentiment Analysis</h2>
-        <textarea id="text" rows="4" placeholder="Type any text to analyze..."></textarea>
-        <button onclick="analyzeSentiment()">Analyze Sentiment</button>
-        <div class="result" id="result">Result will appear here...</div>
+
+        <div class="header-section">
+            <h2>💬 Sentiment Analysis</h2>
+            <p>Analyze any text and detect if it's Positive, Negative or Neutral</p>
+        </div>
+
+        <!-- Quick Test Buttons -->
+        <div class="quick-tests">
+            <button class="quick-btn" onclick="quickTest('I love this product, it is absolutely amazing!')">😊 Positive Example</button>
+            <button class="quick-btn" onclick="quickTest('This is terrible, worst experience ever!')">😠 Negative Example</button>
+            <button class="quick-btn" onclick="quickTest('The product is okay, nothing special.')">😐 Neutral Example</button>
+        </div>
+
+        <!-- Input Card -->
+        <div class="input-card">
+            <textarea id="textInput" rows="5"
+                placeholder="Type or paste any text here to analyze its sentiment..."
+                oninput="updateCount()" style="margin-bottom:0;"></textarea>
+            <div class="char-count"><span id="charCount">0</span> characters</div>
+            <button class="analyze-btn" onclick="analyzeSentiment()" id="analyzeBtn">
+                🔍 Analyze Sentiment
+            </button>
+        </div>
+
+        <!-- Spinner -->
+        <div class="spinner" id="spinner"></div>
+
+        <!-- Result Card -->
+        <div class="result-card" id="resultCard">
+            <div class="sentiment-emoji" id="sentimentEmoji">😊</div>
+            <div class="sentiment-label" id="sentimentLabel">POSITIVE</div>
+            <div class="confidence-bar-wrap">
+                <div class="confidence-bar" id="confidenceBar"></div>
+            </div>
+            <div class="confidence-text" id="confidenceText">Confidence: 0%</div>
+        </div>
+
+        <!-- History -->
+        <div class="history-section" id="historySection" style="display:none;">
+            <h3>📋 Analysis History</h3>
+            <div id="historyList"></div>
+        </div>
     </div>
+
     <script>
+        const emojis = { POSITIVE: '😊', NEGATIVE:'😠', NEUTRAL:'😐' };
+        let history  = [];
+
+        function updateCount() {
+            document.getElementById('charCount').innerText =
+                document.getElementById('textInput').value.length;
+        }
+
+        function quickTest(text) {
+            document.getElementById('textInput').value = text;
+            updateCount();
+            analyzeSentiment();
+        }
+
         async function analyzeSentiment() {
-            const text = document.getElementById('text').value;
-            document.getElementById('result').innerText = 'Analyzing...';
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) { alert('Please enter some text!'); return; }
+
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('spinner').style.display = 'block';
+
             const res  = await fetch('/api/sentiment', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text })
             });
             const data = await res.json();
-            document.getElementById('result').innerText =
-                `Sentiment: ${data.sentiment}\nConfidence: ${data.confidence}%`;
+
+            document.getElementById('spinner').style.display  = 'none';
+            document.getElementById('analyzeBtn').disabled    = false;
+            document.getElementById('resultCard').style.display = 'block';
+
+            const sentiment = data.sentiment;
+            const confidence = parseFloat(data.confidence);
+
+            document.getElementById('sentimentEmoji').innerText = emojis[sentiment] || '🤔';
+            document.getElementById('sentimentLabel').innerText = sentiment;
+            document.getElementById('sentimentLabel').className = `sentiment-label ${sentiment}`;
+            document.getElementById('confidenceText').innerText = `Confidence: ${confidence}%`;
+
+            const bar = document.getElementById('confidenceBar');
+            bar.className = `confidence-bar ${sentiment}`;
+            setTimeout(() => { bar.style.width = confidence + '%'; }, 100);
+
+            // Add to history
+            history.unshift({ text: text.substring(0, 60) + (text.length > 60 ? '...' : ''), sentiment });
+            if (history.length > 5) history.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const section = document.getElementById('historySection');
+            const list    = document.getElementById('historyList');
+            section.style.display = 'block';
+            list.innerHTML = history.map(h => `
+                <div class="history-item">
+                    <div class="history-text">${h.text}</div>
+                    <div class="history-badge badge-${h.sentiment}">${emojis[h.sentiment]} ${h.sentiment}</div>
+                </div>`).join('');
         }
     </script>
 </body>

@@ -3,6 +3,7 @@ import numpy as np
 import nltk
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pickle
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from sklearn.model_selection import train_test_split
@@ -10,106 +11,114 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-# ── 1. Download NLTK Resources ───────────────────────────
-nltk.download('stopwords')
-nltk.download('wordnet')
-nltk.download('omw-1.4')
+nltk.download('stopwords', quiet=True)
+nltk.download('wordnet',   quiet=True)
+nltk.download('omw-1.4',   quiet=True)
 
-# ── 2. Load Dataset ──────────────────────────────────────
-print("📂 Loading dataset...")
-df = pd.read_csv('Tweets.csv')
-
-# Keep only what we need
-df = df[['text', 'airline_sentiment']]
-df.columns = ['text', 'label']
-
-# Map to 3 classes
-df = df[df['label'].isin(['positive', 'negative', 'neutral'])]
-print(f"✅ Dataset loaded: {len(df)} samples")
-print(f"✅ Class distribution:\n{df['label'].value_counts()}\n")
-
-# ── 3. Text Preprocessing ────────────────────────────────
-print("🔄 Preprocessing text...")
 lemmatizer = WordNetLemmatizer()
 stop_words  = set(stopwords.words('english'))
 
 def preprocess(text):
-    # lowercase
-    text = text.lower()
-    # remove special characters
+    text = str(text).lower()
     text = ''.join([c for c in text if c.isalpha() or c == ' '])
-    # remove stopwords and lemmatize
     words = text.split()
     words = [lemmatizer.lemmatize(w) for w in words if w not in stop_words]
     return ' '.join(words)
 
-df['clean_text'] = df['text'].apply(preprocess)
-print("✅ Text preprocessing done!\n")
+# ── 1. Load Airline Dataset ──────────────────────────────
+print("📂 Loading Tweets.csv (Airline)...")
+df1 = pd.read_csv('Tweets.csv')
+df1 = df1[['text', 'airline_sentiment']].dropna()
+df1.columns = ['text', 'label']
+df1 = df1[df1['label'].isin(['positive', 'negative', 'neutral'])]
+print(f"✅ Airline dataset: {len(df1)} samples")
 
-# ── 4. Split Data ────────────────────────────────────────
+# ── 2. Load Twitter Dataset ──────────────────────────────
+print("📂 Loading Twitter_Data.csv...")
+df2 = pd.read_csv('Twitter_Data.csv')
+df2 = df2[['clean_text', 'category']].dropna()
+df2.columns = ['text', 'label']
+df2['label'] = df2['label'].astype(float).map({
+    -1.0: 'negative',
+     0.0: 'neutral',
+     1.0: 'positive'
+})
+df2 = df2.dropna()
+print(f"✅ Twitter dataset: {len(df2)} samples")
+
+# ── 3. Combine Both ──────────────────────────────────────
+df = pd.concat([df1, df2], ignore_index=True).sample(frac=1, random_state=42)
+print(f"\n✅ Combined dataset: {len(df)} samples")
+print(f"✅ Class distribution:\n{df['label'].value_counts()}\n")
+
+# ── 4. Preprocess ────────────────────────────────────────
+print("🔄 Preprocessing text...")
+df['clean'] = df['text'].apply(preprocess)
+print("✅ Done!\n")
+
+# ── 5. Split ─────────────────────────────────────────────
 X_train, X_test, y_train, y_test = train_test_split(
-    df['clean_text'], df['label'],
+    df['clean'], df['label'],
     test_size=0.2,
     random_state=42,
     stratify=df['label']
 )
-print(f"✅ Train size: {len(X_train)}")
-print(f"✅ Test size:  {len(X_test)}\n")
+print(f"✅ Train: {len(X_train)} | Test: {len(X_test)}\n")
 
-# ── 5. TF-IDF Vectorization ──────────────────────────────
-print("🔄 Vectorizing text with TF-IDF...")
-vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2))
-X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf  = vectorizer.transform(X_test)
-print("✅ Vectorization done!\n")
+# ── 6. Vectorize ─────────────────────────────────────────
+print("🔄 Vectorizing with TF-IDF...")
+vectorizer = TfidfVectorizer(max_features=15000, ngram_range=(1, 3))
+X_train_v  = vectorizer.fit_transform(X_train)
+X_test_v   = vectorizer.transform(X_test)
+print("✅ Done!\n")
 
-# ── 6. Train Model ───────────────────────────────────────
-print("🚀 Training Logistic Regression model...")
-model = LogisticRegression(max_iter=1000, random_state=42)
-model.fit(X_train_tfidf, y_train)
+# ── 7. Train ─────────────────────────────────────────────
+print("🚀 Training model on combined dataset...")
+model = LogisticRegression(max_iter=1000, C=5.0, random_state=42)
+model.fit(X_train_v, y_train)
 print("✅ Training complete!\n")
 
-# ── 7. Evaluate Model ────────────────────────────────────
-y_pred = model.predict(X_test_tfidf)
-
+# ── 8. Evaluate ──────────────────────────────────────────
+y_pred   = model.predict(X_test_v)
 accuracy = accuracy_score(y_test, y_pred)
 print(f"📊 Accuracy: {accuracy * 100:.2f}%\n")
-print("📊 Classification Report:")
 print(classification_report(y_test, y_pred))
 
-# ── 8. Confusion Matrix ──────────────────────────────────
+# ── 9. Confusion Matrix ──────────────────────────────────
 cm = confusion_matrix(y_test, y_pred,
                       labels=['positive', 'negative', 'neutral'])
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Greens',
             xticklabels=['Positive', 'Negative', 'Neutral'],
             yticklabels=['Positive', 'Negative', 'Neutral'])
-plt.title('Confusion Matrix - Sentiment Analysis')
+plt.title('Confusion Matrix - Combined Sentiment Analysis')
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
 plt.savefig('sentiment_confusion_matrix.png')
 plt.show()
-print("✅ Confusion matrix saved!")
 
-# ── 9. Test With Custom Input ────────────────────────────
-print("\n💬 Test the model yourself!")
-print("Type a sentence and see if it's Positive, Negative or Neutral")
-print("Type 'quit' to exit\n")
+# ── 10. Save ─────────────────────────────────────────────
+print("\n💾 Saving model...")
+with open('sentiment_model.pkl',      'wb') as f:
+    pickle.dump(model, f)
+with open('sentiment_vectorizer.pkl', 'wb') as f:
+    pickle.dump(vectorizer, f)
+print("✅ Saved!")
 
-while True:
-    user_input = input("Enter text: ").strip()
-
-    if user_input.lower() == 'quit':
-        print("Goodbye!")
-        break
-
-    if not user_input:
-        continue
-
-    cleaned    = preprocess(user_input)
-    vectorized = vectorizer.transform([cleaned])
-    prediction = model.predict(vectorized)[0]
-    confidence = model.predict_proba(vectorized).max() * 100
-
-    print(f"➡️  Sentiment: {prediction.upper()} "
-          f"(Confidence: {confidence:.1f}%)\n")
+# ── 11. Test with real examples ──────────────────────────
+print("\n💬 Testing with real sentences:")
+tests = [
+    "I am a student",
+    "I love this so much!",
+    "This is absolutely terrible",
+    "The weather is okay today",
+    "I hate Mondays",
+    "Best day of my life!",
+    "It is what it is",
+]
+for t in tests:
+    c    = preprocess(t)
+    v    = vectorizer.transform([c])
+    p    = model.predict(v)[0]
+    conf = model.predict_proba(v).max() * 100
+    print(f"  '{t}' → {p.upper()} ({conf:.1f}%)")

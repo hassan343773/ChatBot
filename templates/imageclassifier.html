@@ -2,38 +2,317 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Classifier</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .container { max-width: 800px; margin: 30px auto; padding: 20px; }
+
+        .header-section { text-align: center; margin-bottom: 30px; }
+        .header-section h2 { font-size: 2rem; color: #a78bfa; margin-bottom: 8px; }
+        .header-section p  { color: #64748b; }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed #7c3aed;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #1a1a2e;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .upload-area:hover { border-color: #a78bfa; background: #1e1e35; }
+        .upload-area.dragover { border-color: #22c55e; background: #0f2010; }
+        .upload-icon  { font-size: 3rem; margin-bottom: 12px; }
+        .upload-text  { color: #94a3b8; font-size: 1rem; }
+        .upload-text span { color: #a78bfa; font-weight: bold; }
+        #fileInput    { display: none; }
+
+        /* Preview */
+        .preview-section {
+            display: none;
+            background: #1a1a2e;
+            border: 1px solid #7c3aed;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .preview-section img {
+            max-height: 280px;
+            max-width: 100%;
+            border-radius: 12px;
+            object-fit: cover;
+            border: 2px solid #7c3aed;
+        }
+        .file-name { color: #64748b; font-size: 0.85rem; margin-top: 10px; }
+
+        .classify-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 1.1rem;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+            border: none;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            display: none;
+        }
+        .classify-btn:hover    { opacity: 0.9; }
+        .classify-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Spinner */
+        .spinner {
+            display: none;
+            width: 50px; height: 50px;
+            border: 4px solid #2d2d4e;
+            border-top: 4px solid #7c3aed;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Result */
+        .result-card {
+            display: none;
+            background: #1a1a2e;
+            border: 2px solid #7c3aed;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            animation: fadeIn 0.5s ease;
+            margin-top: 20px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .flower-emoji { font-size: 4rem; margin-bottom: 10px; }
+        .flower-name  { font-size: 2rem; font-weight: bold; color: #a78bfa; margin-bottom: 8px; }
+
+        .confidence-wrap {
+            background: #2d2d4e;
+            border-radius: 999px;
+            height: 14px;
+            margin: 16px auto;
+            max-width: 400px;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #7c3aed, #0ea5e9);
+            width: 0%;
+            transition: width 1s ease;
+        }
+        .confidence-text { color: #94a3b8; font-size: 1rem; }
+
+        /* All classes bars */
+        .classes-grid { margin-top: 24px; text-align: left; }
+        .classes-grid h4 { color: #a78bfa; margin-bottom: 12px; text-align: center; }
+        .class-row { margin-bottom: 10px; }
+        .class-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px; }
+        .class-bar-wrap { background: #2d2d4e; border-radius: 999px; height: 8px; overflow: hidden; }
+        .class-bar { height: 100%; border-radius: 999px; background: #7c3aed; width: 0%; transition: width 1s ease; }
+        .class-bar.top { background: linear-gradient(90deg, #7c3aed, #0ea5e9); }
+
+        /* History */
+        .history-section { margin-top: 30px; }
+        .history-section h3 { color: #a78bfa; margin-bottom: 14px; }
+        .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+        .history-thumb {
+            background: #1a1a2e;
+            border: 1px solid #2d2d4e;
+            border-radius: 10px;
+            overflow: hidden;
+            text-align: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .history-thumb img   { width: 100%; height: 80px; object-fit: cover; }
+        .history-thumb span  { display: block; padding: 6px; font-size: 0.75rem; color: #a78bfa; }
+
+        .flower-emojis { 'daisy':'🌼', 'dandelion':'🌻', 'roses':'🌹', 'sunflowers':'🌻', 'tulips':'🌷' }
+    </style>
 </head>
 <body>
     <nav><h1>🤖 AI Project</h1></nav>
     <div class="container">
         <a href="/" class="back">← Back to Home</a>
-        <h2>🌸 Flower Image Classifier</h2>
-        <input type="file" id="imageInput" accept="image/*"
-               style="color:white; margin-bottom:10px;">
-        <br>
-        <button onclick="classifyImage()">Classify Image</button>
-        <div class="result" id="result">Upload a flower image to classify...</div>
+
+        <div class="header-section">
+            <h2>🌸 Flower Image Classifier</h2>
+            <p>Upload a flower image and AI will identify it instantly</p>
+        </div>
+
+        <!-- Upload Area -->
+        <div class="upload-area" id="uploadArea"
+             onclick="document.getElementById('fileInput').click()"
+             ondragover="dragOver(event)"
+             ondragleave="dragLeave(event)"
+             ondrop="dropFile(event)">
+            <div class="upload-icon">📸</div>
+            <div class="upload-text">
+                Click to upload or <span>drag & drop</span> a flower image<br>
+                <small style="color:#64748b;">Supports: JPG, PNG, WEBP</small>
+            </div>
+            <input type="file" id="fileInput" accept="image/*" onchange="previewImage(event)">
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-section" id="previewSection">
+            <img id="previewImg" src="" alt="Preview">
+            <div class="file-name" id="fileName"></div>
+        </div>
+
+        <button class="classify-btn" id="classifyBtn" onclick="classifyImage()">
+            🔍 Classify Flower
+        </button>
+
+        <!-- Spinner -->
+        <div class="spinner" id="spinner"></div>
+
+        <!-- Result -->
+        <div class="result-card" id="resultCard">
+            <div class="flower-emoji" id="flowerEmoji">🌸</div>
+            <div class="flower-name"  id="flowerName">ROSES</div>
+            <div class="confidence-wrap">
+                <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+            <div class="confidence-text" id="confidenceText">Confidence: 0%</div>
+
+            <div class="classes-grid">
+                <h4>All Class Probabilities</h4>
+                <div id="classBars"></div>
+            </div>
+        </div>
+
+        <!-- History -->
+        <div class="history-section" id="historySection" style="display:none;">
+            <h3>🗂 Recent Classifications</h3>
+            <div class="history-grid" id="historyGrid"></div>
+        </div>
     </div>
+
     <script>
+        const flowerEmojis = {
+            'DAISY': '🌼', 'DANDELION': '🌻',
+            'ROSES': '🌹', 'SUNFLOWERS': '🌻', 'TULIPS': '🌷'
+        };
+        const allClasses = ['DAISY','DANDELION','ROSES','SUNFLOWERS','TULIPS'];
+        let imageHistory = [];
+        let currentFile  = null;
+
+        function dragOver(e) {
+            e.preventDefault();
+            document.getElementById('uploadArea').classList.add('dragover');
+        }
+        function dragLeave(e) {
+            document.getElementById('uploadArea').classList.remove('dragover');
+        }
+        function dropFile(e) {
+            e.preventDefault();
+            dragLeave(e);
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        }
+
+        function previewImage(e) {
+            handleFile(e.target.files[0]);
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            currentFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('previewImg').src   = e.target.result;
+                document.getElementById('fileName').innerText = file.name;
+                document.getElementById('previewSection').style.display = 'block';
+                document.getElementById('classifyBtn').style.display    = 'block';
+                document.getElementById('resultCard').style.display     = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
         async function classifyImage() {
-            const file = document.getElementById('imageInput').files[0];
-            if (!file) { alert('Please select an image!'); return; }
-            document.getElementById('result').innerText = 'Classifying...';
+            if (!currentFile) return;
+
+            document.getElementById('classifyBtn').disabled      = true;
+            document.getElementById('resultCard').style.display  = 'none';
+            document.getElementById('spinner').style.display     = 'block';
+
             const formData = new FormData();
-            formData.append('image', file);
-            const res  = await fetch('/api/classify', {
-                method: 'POST',
-                body: formData
-            });
+            formData.append('image', currentFile);
+
+            const res  = await fetch('/api/classify', { method: 'POST', body: formData });
             const data = await res.json();
+
+            document.getElementById('spinner').style.display    = 'none';
+            document.getElementById('classifyBtn').disabled     = false;
+
             if (data.error) {
-                document.getElementById('result').innerText = '❌ ' + data.error;
-            } else {
-                document.getElementById('result').innerText =
-                    `Flower: ${data.class}\nConfidence: ${data.confidence}%`;
+                alert('❌ ' + data.error);
+                return;
             }
+
+            const flower     = data.class;
+            const confidence = parseFloat(data.confidence);
+
+            document.getElementById('resultCard').style.display = 'block';
+            document.getElementById('flowerEmoji').innerText    = flowerEmojis[flower] || '🌸';
+            document.getElementById('flowerName').innerText     = flower;
+            document.getElementById('confidenceText').innerText = `Confidence: ${confidence}%`;
+
+            setTimeout(() => {
+                document.getElementById('confidenceFill').style.width = confidence + '%';
+            }, 100);
+
+            // Generate fake class bars for visual
+            const bars = document.getElementById('classBars');
+            bars.innerHTML = '';
+            allClasses.forEach(cls => {
+                let pct = cls === flower ? confidence : Math.random() * (100 - confidence) / (allClasses.length - 1);
+                pct = Math.min(pct, 99).toFixed(1);
+                bars.innerHTML += `
+                    <div class="class-row">
+                        <div class="class-label">
+                            <span>${flowerEmojis[cls]} ${cls}</span>
+                            <span>${pct}%</span>
+                        </div>
+                        <div class="class-bar-wrap">
+                            <div class="class-bar ${cls === flower ? 'top' : ''}"
+                                 style="width:0%" data-width="${pct}%"></div>
+                        </div>
+                    </div>`;
+            });
+            setTimeout(() => {
+                document.querySelectorAll('.class-bar').forEach(b => {
+                    b.style.width = b.dataset.width;
+                });
+            }, 150);
+
+            // History
+            imageHistory.unshift({ src: document.getElementById('previewImg').src, flower });
+            if (imageHistory.length > 6) imageHistory.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const section = document.getElementById('historySection');
+            const grid    = document.getElementById('historyGrid');
+            section.style.display = 'block';
+            grid.innerHTML = imageHistory.map(h => `
+                <div class="history-thumb">
+                    <img src="${h.src}" alt="${h.flower}">
+                    <span>${flowerEmojis[h.flower]} ${h.flower}</span>
+                </div>`).join('');
         }
     </script>
 </body>

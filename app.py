@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, jsonify
-import pandas as pd
 from groq import Groq
 import numpy as np
 import nltk
@@ -7,12 +6,9 @@ import pickle
 import os
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image as keras_image
-
+import pandas as pd
 app = Flask(__name__)
 
 
@@ -35,20 +31,13 @@ def preprocess(text):
     words = [lemmatizer.lemmatize(w) for w in words if w not in stop_words]
     return ' '.join(words)
 
-# Train NLP model on startup
+# Load pre-trained NLP model
 print("🔄 Loading NLP model...")
-df = pd.read_csv('Tweets.csv')
-df = df[['text', 'airline_sentiment']]
-df.columns = ['text', 'label']
-df = df[df['label'].isin(['positive', 'negative', 'neutral'])]
-df['clean_text'] = df['text'].apply(preprocess)
-
-vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2))
-X = vectorizer.fit_transform(df['clean_text'])
-nlp_model = LogisticRegression(max_iter=1000, random_state=42)
-nlp_model.fit(X, df['label'])
+with open('sentiment_model.pkl',      'rb') as f:
+    nlp_model = pickle.load(f)
+with open('sentiment_vectorizer.pkl', 'rb') as f:
+    vectorizer = pickle.load(f)
 print("✅ NLP model ready!")
-
 # ── Image Model Setup ────────────────────────────────────
 CLASSES = ['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips']
 img_model = None
